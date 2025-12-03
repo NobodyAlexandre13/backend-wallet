@@ -1,32 +1,6 @@
-import express from 'express';
-import dotenv from 'dotenv';
-import { sql } from './config/db.js';
+import { sql } from '../config/db.js';
 
-dotenv.config();
-
-const app = express();
-const PORT = process.env.PORT || 5001;
-
-app.use(express.json())
-
-async function initDB(){
-    try {
-        await sql`CREATE TABLE IF NOT EXISTS transactions(
-            id SERIAL PRIMARY KEY,
-            user_id VARCHAR(255) NOT NULL,
-            title VARCHAR(255) NOT NULL,
-            amount DECIMAL(10,2) NOT NULL,
-            category VARCHAR(255) NOT NULL,
-            created_at DATE NOT NULL DEFAULT CURRENT_DATE
-        )`
-        console.log("Base de dados criado com sucesso")
-    } catch (error) {
-        console.log("Erro ao inicializar a DB", error)
-        process.exit(1)
-    }
-}
-
-app.get("/api/transactions/:user_id", async(req, res) =>{
+export async function getTransactionsByUserId(req, res) {
     try {
         const { user_id} =  req.params;
 
@@ -39,9 +13,9 @@ app.get("/api/transactions/:user_id", async(req, res) =>{
         console.log("Erro ao pegar transação", error);
         res.status(500).json({message: "Erro interno no servidor"})
     }
-})
+}
 
-app.post("/api/transactions", async(req, res) => {
+export async function createTransactions(req, res) {
     try {
         const { title,amount,category,user_id} = req.body;
 
@@ -59,9 +33,9 @@ app.post("/api/transactions", async(req, res) => {
         console.log("Erro ao criar transação", error);
         res.status(500).json({message: "Erro interno no servidor"})
     }
-})
+}
 
-app.delete("/api/transactions/:id", async(req, res) =>{
+export async function deleteTransactions(req, res) {
     try {
         const { id } =  req.params;
         
@@ -82,10 +56,35 @@ app.delete("/api/transactions/:id", async(req, res) =>{
         console.log("Erro ao eliminar transação", error);
         res.status(500).json({message: "Erro interno no servidor"})
     }
-})
+}
 
-initDB().then(() => {
-    app.listen(5001,()=>{
-        console.log('Server running on port ', PORT);
-    })
-})
+export  async function getSummaryUserId(req, res) {
+    try {
+        const {user_id} = req.params;
+
+        const balanceResult = await sql`
+            SELECT COALESCE(SUM(amount), 0) as balance FROM transactions 
+            WHERE user_id = ${user_id}
+        `
+
+        const incomeResult = await sql`
+            SELECT COALESCE(SUM(amount), 0) as income FROM transactions
+            WHERE user_id = ${user_id} AND amount > 0
+        `
+
+        const expenseResult = await sql`
+            SELECT COALESCE(SUM(amount), 0) as expense FROM transactions
+            WHERE user_id = ${user_id} AND amount < 0
+        `
+
+        res.status(200).json({
+            balance: balanceResult[0].balance,
+            income: incomeResult[0].income,
+            expense: expenseResult[0].expense
+        });
+
+    } catch (error) {
+        console.log("Erro ao eliminar transação", error);
+        res.status(500).json({message: "Erro interno no servidor"})
+    }
+} 
